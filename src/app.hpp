@@ -1,7 +1,12 @@
 #pragma once
 
+#include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
+#include <vector>
+
+#include "filesystem/filesystem_engine.hpp"
 
 class SQLiteManager;
 class FileSystemEngine;
@@ -17,6 +22,7 @@ class FavoritesDropdown;
 class ListView;
 class CommandPanel;
 class ThemeManager;
+class CommandExecutor;
 
 class GridFireApp {
 public:
@@ -30,6 +36,14 @@ public:
     const std::string& current_path() const noexcept { return current_path_; }
 
 private:
+    enum class ViewMode { Grid, List };
+
+    void refresh_entries(bool force = false);
+    void select_entry(size_t index);
+    void open_entry(size_t index);
+    void change_directory(const std::string& path);
+    void run_command(const std::string& command);
+
     void log_event(const std::string& function, const std::string& message) const;
 
     std::unique_ptr<SQLiteManager> db_;
@@ -47,7 +61,17 @@ private:
     std::unique_ptr<FavoritesDropdown> favorites_dropdown_;
     std::unique_ptr<CommandPanel> command_panel_;
     std::unique_ptr<ThemeManager> theme_manager_;
+    std::unique_ptr<CommandExecutor> command_executor_;
 
     std::string current_path_;
-    bool show_detail_panel_ = true;
+    std::vector<FileEntry> current_entries_;
+    std::optional<size_t> selected_index_;
+    std::optional<FileEntry> selected_entry_;
+    std::chrono::steady_clock::time_point last_refresh_;
+    std::chrono::milliseconds refresh_interval_{std::chrono::seconds(2)};
+    bool refresh_requested_ = true;
+    ViewMode view_mode_ = ViewMode::Grid;
+    std::string status_message_;
+    std::string last_command_message_;
+    int last_command_exit_code_ = 0;
 };
