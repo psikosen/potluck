@@ -7,3 +7,5 @@
 - [x] Add placeholder component implementations to satisfy linkage requirements
 - [x] Provide initial tests for database and filesystem subsystems
 - [x] Document build and test workflow in README
+- [x] Implement interactive ImGui workspace with top bar, favorites picker, and detail panel
+- [x] Add functional grid/list views with selection, navigation, and command console wiring

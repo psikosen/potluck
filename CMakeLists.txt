@@ -31,7 +31,11 @@ set(GRIDFIRE_CORE_SOURCES
 )
 
 add_library(gridfire_core ${GRIDFIRE_CORE_SOURCES})
-target_include_directories(gridfire_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(gridfire_core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui/misc/cpp
+)
 target_link_libraries(gridfire_core PUBLIC SQLite::SQLite3 Threads::Threads)
 
 target_compile_options(gridfire_core PRIVATE -Wall -Wextra -Wpedantic)
