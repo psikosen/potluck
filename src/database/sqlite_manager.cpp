@@ -218,6 +218,35 @@ bool SQLiteManager::create_tables() {
             FOREIGN KEY (collection_id) REFERENCES favorite_collections(id)
         );
 
+        CREATE TABLE IF NOT EXISTS tab_state (
+            id TEXT PRIMARY KEY,
+            pane_id TEXT,
+            name TEXT,
+            path TEXT,
+            color TEXT,
+            pinned INTEGER,
+            sort_order INTEGER,
+            view_mode TEXT,
+            sort_mode TEXT,
+            filter_pattern TEXT,
+            scroll_position INTEGER,
+            created_at INTEGER,
+            last_accessed INTEGER
+        );
+
+        CREATE TABLE IF NOT EXISTS tab_groups (
+            id INTEGER PRIMARY KEY,
+            name TEXT UNIQUE,
+            created_at INTEGER
+        );
+
+        CREATE TABLE IF NOT EXISTS tab_group_members (
+            group_id INTEGER,
+            tab_id TEXT,
+            FOREIGN KEY (group_id) REFERENCES tab_groups(id),
+            FOREIGN KEY (tab_id) REFERENCES tab_state(id)
+        );
+
         CREATE TABLE IF NOT EXISTS git_repos (
             id INTEGER PRIMARY KEY,
             path TEXT UNIQUE NOT NULL,

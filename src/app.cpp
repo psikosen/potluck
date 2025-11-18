@@ -10,9 +10,8 @@
 #include "git/git_manager.hpp"
 #include "ui/command_panel.hpp"
 #include "ui/detail_panel.hpp"
+#include "ui/dual_pane_view.hpp"
 #include "ui/favorites_dropdown.hpp"
-#include "ui/grid_view.hpp"
-#include "ui/list_view.hpp"
 #include "ui/theme.hpp"
 #include "ui/top_bar.hpp"
 
@@ -21,7 +20,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
-#include <ctime>
 #include <filesystem>
 #include <iostream>
 #include <optional>
@@ -34,6 +32,10 @@ std::string timestamp() {
     std::strftime(buffer, sizeof(buffer), "%FT%TZ", std::gmtime(&now));
     return buffer;
 }
+
+std::string pane_label(PaneIdentifier id) {
+    return id == PaneIdentifier::Left ? "left" : "right";
+}
 }
 
 GridFireApp::GridFireApp() = default;
@@ -42,11 +44,7 @@ GridFireApp::~GridFireApp() = default;
 bool GridFireApp::initialize(const std::string& root_path) {
     std::error_code ec;
     std::filesystem::path initial = std::filesystem::absolute(root_path, ec);
-    if (ec) {
-        current_path_ = root_path;
-    } else {
-        current_path_ = initial.lexically_normal().string();
-    }
+    std::string resolved_path = ec ? root_path : initial.lexically_normal().string();
 
     db_ = std::make_unique<SQLiteManager>("gridfire.db");
     if (!db_->initialize()) {
@@ -61,30 +59,41 @@ bool GridFireApp::initialize(const std::string& root_path) {
     git_manager_ = std::make_unique<GitManager>();
     favorites_manager_ = std::make_unique<FavoritesManager>();
 
-    grid_view_ = std::make_unique<GridView>();
-    list_view_ = std::make_unique<ListView>();
     detail_panel_ = std::make_unique<DetailPanel>();
     top_bar_ = std::make_unique<TopBar>();
     favorites_dropdown_ = std::make_unique<FavoritesDropdown>(favorites_manager_.get());
     command_panel_ = std::make_unique<CommandPanel>();
     theme_manager_ = std::make_unique<ThemeManager>();
     command_executor_ = std::make_unique<CommandExecutor>();
+    dual_pane_view_ = std::make_unique<DualPaneView>();
 
-    const auto& theme = theme_manager_->current_theme();
-    grid_view_->set_theme(theme);
-    list_view_->set_theme(theme);
     top_bar_->set_title("GridFire v2.0");
-    top_bar_->set_path(current_path_);
 
-    favorites_manager_->add_favorite({"Quick Access", current_path_});
+    favorites_manager_->add_favorite({"Quick Access", resolved_path});
     if (const char* home = std::getenv("HOME")) {
         favorites_manager_->add_favorite({"Home", home});
     }
 
-    refresh_entries(true);
+    initialize_pane(left_pane_, resolved_path);
+    initialize_pane(right_pane_, resolved_path);
+    active_pane_ = &left_pane_;
 
     log_event(__func__, "initialized");
     return true;
+}
+
+void GridFireApp::initialize_pane(PaneState& pane, const std::string& root_path) {
+    pane.grid_view = std::make_unique<GridView>();
+    pane.list_view = std::make_unique<ListView>();
+    const auto& theme = theme_manager_->current_theme();
+    pane.grid_view->set_theme(theme);
+    pane.list_view->set_theme(theme);
+    pane.current_path = root_path;
+    pane.tabs.set_database(db_.get());
+    pane.tabs.set_pane_id(pane_label(pane.id));
+    pane.tabs.initialize(root_path);
+    change_directory(pane, pane.tabs.active_tab().path);
+    pane.refresh_requested = true;
 }
 
 void GridFireApp::render() {
@@ -92,35 +101,50 @@ void GridFireApp::render() {
         return;
     }
 
-    auto now = std::chrono::steady_clock::now();
-    if (refresh_requested_ && now - last_refresh_ >= refresh_interval_) {
-        refresh_entries(true);
-    }
+    refresh_pane_entries(left_pane_, left_pane_.refresh_requested);
+    refresh_pane_entries(right_pane_, right_pane_.refresh_requested);
 
 #ifdef IMGUI_HAS_DOCK
     ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 #endif
 
-    top_bar_->set_path(current_path_);
-    TopBar::Interaction top_interaction = top_bar_->render(view_mode_ == ViewMode::Grid, refresh_requested_);
+    top_bar_->set_path(active_pane().current_path);
+    TopBar::Interaction top_interaction = top_bar_->render(active_pane().view_mode == ViewMode::Grid,
+                                                          active_pane().refresh_requested);
     if (top_interaction.requested_path) {
-        change_directory(*top_interaction.requested_path);
+        change_directory(active_pane(), *top_interaction.requested_path);
     }
     if (top_interaction.refresh_requested) {
-        refresh_requested_ = true;
+        active_pane().refresh_requested = true;
     }
     if (top_interaction.toggle_view_mode) {
-        view_mode_ = view_mode_ == ViewMode::Grid ? ViewMode::List : ViewMode::Grid;
+        active_pane().view_mode = active_pane().view_mode == ViewMode::Grid ? ViewMode::List : ViewMode::Grid;
     }
 
     ImGui::Begin("Navigation");
-    auto favorites_result = favorites_dropdown_->render(current_path_);
-    if (favorites_result.toggle_current) {
-        favorites_manager_->toggle_favorite(current_path_);
+    ImGui::SeparatorText("Left Pane");
+    ImGui::PushID("left-pane");
+    auto left_favorites = favorites_dropdown_->render(left_pane_.current_path);
+    ImGui::PopID();
+    if (left_favorites.toggle_current) {
+        favorites_manager_->toggle_favorite(left_pane_.current_path);
     }
-    if (favorites_result.selected_path) {
-        change_directory(*favorites_result.selected_path);
+    if (left_favorites.selected_path) {
+        change_directory(left_pane_, *left_favorites.selected_path);
     }
+
+    ImGui::Separator();
+    ImGui::SeparatorText("Right Pane");
+    ImGui::PushID("right-pane");
+    auto right_favorites = favorites_dropdown_->render(right_pane_.current_path);
+    ImGui::PopID();
+    if (right_favorites.toggle_current) {
+        favorites_manager_->toggle_favorite(right_pane_.current_path);
+    }
+    if (right_favorites.selected_path) {
+        change_directory(right_pane_, *right_favorites.selected_path);
+    }
+
     if (!status_message_.empty()) {
         ImGui::Separator();
         ImGui::TextWrapped("%s", status_message_.c_str());
@@ -128,43 +152,74 @@ void GridFireApp::render() {
     ImGui::End();
 
     ImGui::Begin("Workspace");
-    if (view_mode_ == ViewMode::Grid) {
-        auto interaction = grid_view_->render(selected_index_);
-        if (interaction.selected_index) {
-            select_entry(*interaction.selected_index);
-        }
-        if (interaction.activated_index) {
-            open_entry(*interaction.activated_index);
-        }
-    } else {
-        auto interaction = list_view_->render(selected_index_);
-        if (interaction.selected_index) {
-            select_entry(*interaction.selected_index);
-        }
-        if (interaction.activated_index) {
-            open_entry(*interaction.activated_index);
-        }
+    auto pane_interaction = dual_pane_view_->render(left_pane_, right_pane_, active_pane_->id);
+
+    if (pane_interaction.left.selected_index) {
+        select_entry(left_pane_, *pane_interaction.left.selected_index);
+    }
+    if (pane_interaction.left.activated_index) {
+        open_entry(left_pane_, *pane_interaction.left.activated_index);
+    }
+    if (pane_interaction.left.tab_path_changed) {
+        change_directory(left_pane_, pane_interaction.left.new_path);
+    }
+
+    if (pane_interaction.right.selected_index) {
+        select_entry(right_pane_, *pane_interaction.right.selected_index);
+    }
+    if (pane_interaction.right.activated_index) {
+        open_entry(right_pane_, *pane_interaction.right.activated_index);
+    }
+    if (pane_interaction.right.tab_path_changed) {
+        change_directory(right_pane_, pane_interaction.right.new_path);
+    }
+
+    if (pane_interaction.switch_active) {
+        active_pane_ = &pane(pane_interaction.requested_active);
+    }
+
+    if (pane_interaction.copy_active_to_other) {
+        copy_between_panes(*active_pane_, other_pane(), false);
+    }
+    if (pane_interaction.copy_other_to_active) {
+        copy_between_panes(other_pane(), *active_pane_, false);
+    }
+    if (pane_interaction.move_active_to_other) {
+        copy_between_panes(*active_pane_, other_pane(), true);
+    }
+    if (pane_interaction.move_other_to_active) {
+        copy_between_panes(other_pane(), *active_pane_, true);
+    }
+    if (pane_interaction.sync_active_to_other) {
+        sync_panes(*active_pane_, other_pane());
+    }
+    if (pane_interaction.swap_requested) {
+        swap_panes();
     }
     ImGui::End();
 
-    detail_panel_->set_selection(selected_entry_);
+    detail_panel_->set_selection(active_pane().selected_entry);
     detail_panel_->render();
 
     auto command_interaction = command_panel_->render(last_command_exit_code_, last_command_message_);
     if (command_interaction.submitted_command) {
         run_command(*command_interaction.submitted_command);
     }
+
+    left_pane_.tabs.persist();
+    right_pane_.tabs.persist();
 }
 
 void GridFireApp::shutdown() {
     log_event(__func__, "shutdown begin");
+    left_pane_.tabs.persist();
+    right_pane_.tabs.persist();
     favorites_dropdown_.reset();
     detail_panel_.reset();
-    grid_view_.reset();
-    list_view_.reset();
     top_bar_.reset();
     command_panel_.reset();
     theme_manager_.reset();
+    dual_pane_view_.reset();
 
     favorites_manager_.reset();
     git_manager_.reset();
@@ -176,17 +231,17 @@ void GridFireApp::shutdown() {
     log_event(__func__, "shutdown complete");
 }
 
-void GridFireApp::refresh_entries(bool force) {
+void GridFireApp::refresh_pane_entries(PaneState& pane, bool force) {
     if (!fs_engine_) {
         return;
     }
-
     auto now = std::chrono::steady_clock::now();
-    if (!force && now - last_refresh_ < refresh_interval_) {
+    if (!force && pane.last_refresh.time_since_epoch().count() != 0 &&
+        now - pane.last_refresh < refresh_interval_) {
         return;
     }
 
-    auto entries = fs_engine_->scan_directory(current_path_);
+    auto entries = fs_engine_->scan_directory(pane.current_path);
     std::sort(entries.begin(), entries.end(), [](const FileEntry& lhs, const FileEntry& rhs) {
         if (lhs.is_directory != rhs.is_directory) {
             return lhs.is_directory && !rhs.is_directory;
@@ -194,49 +249,53 @@ void GridFireApp::refresh_entries(bool force) {
         return lhs.name < rhs.name;
     });
 
-    current_entries_ = entries;
-    grid_view_->set_entries(current_entries_);
-    list_view_->set_entries(current_entries_);
-    last_refresh_ = now;
-    refresh_requested_ = false;
+    pane.entries = entries;
+    if (pane.grid_view) {
+        pane.grid_view->set_entries(pane.entries);
+    }
+    if (pane.list_view) {
+        pane.list_view->set_entries(pane.entries);
+    }
+    pane.last_refresh = now;
+    pane.refresh_requested = false;
 
-    if (selected_entry_) {
-        auto it = std::find_if(current_entries_.begin(), current_entries_.end(), [&](const FileEntry& entry) {
-            return entry.full_path == selected_entry_->full_path;
+    if (pane.selected_entry) {
+        auto it = std::find_if(pane.entries.begin(), pane.entries.end(), [&](const FileEntry& entry) {
+            return entry.full_path == pane.selected_entry->full_path;
         });
-        if (it != current_entries_.end()) {
-            selected_index_ = static_cast<size_t>(std::distance(current_entries_.begin(), it));
-            selected_entry_ = *it;
+        if (it != pane.entries.end()) {
+            pane.selected_index = static_cast<size_t>(std::distance(pane.entries.begin(), it));
+            pane.selected_entry = *it;
         } else {
-            selected_index_.reset();
-            selected_entry_.reset();
+            pane.selected_index.reset();
+            pane.selected_entry.reset();
         }
     }
 
-    status_message_ = "Loaded " + std::to_string(current_entries_.size()) + " entries";
+    status_message_ = "Loaded " + std::to_string(pane.entries.size()) + " entries in " + pane.current_path;
 }
 
-void GridFireApp::select_entry(size_t index) {
-    if (index >= current_entries_.size()) {
+void GridFireApp::select_entry(PaneState& pane, size_t index) {
+    if (index >= pane.entries.size()) {
         return;
     }
-    selected_index_ = index;
-    selected_entry_ = current_entries_[index];
+    pane.selected_index = index;
+    pane.selected_entry = pane.entries[index];
 }
 
-void GridFireApp::open_entry(size_t index) {
-    if (index >= current_entries_.size()) {
+void GridFireApp::open_entry(PaneState& pane, size_t index) {
+    if (index >= pane.entries.size()) {
         return;
     }
-    const auto& entry = current_entries_[index];
+    const auto& entry = pane.entries[index];
     if (entry.is_directory) {
-        change_directory(entry.full_path);
+        change_directory(pane, entry.full_path);
     } else {
         status_message_ = "Selected file: " + entry.full_path;
     }
 }
 
-void GridFireApp::change_directory(const std::string& path) {
+void GridFireApp::change_directory(PaneState& pane, const std::string& path) {
     std::filesystem::path requested(path);
     std::error_code ec;
     if (!std::filesystem::exists(requested, ec)) {
@@ -249,13 +308,80 @@ void GridFireApp::change_directory(const std::string& path) {
     }
     std::filesystem::path canonical_path = std::filesystem::canonical(requested, ec);
     if (!ec) {
-        current_path_ = canonical_path.string();
+        pane.current_path = canonical_path.string();
     } else {
-        current_path_ = std::filesystem::absolute(requested).lexically_normal().string();
+        pane.current_path = std::filesystem::absolute(requested).lexically_normal().string();
     }
-    refresh_requested_ = true;
-    top_bar_->set_path(current_path_);
-    log_event(__func__, "Changed directory to " + current_path_);
+    pane.refresh_requested = true;
+    pane.tabs.active_tab().path = pane.current_path;
+    pane.tabs.mark_dirty();
+    pane.tabs.persist();
+    log_event(__func__, "Changed " + pane_label(pane.id) + " pane to " + pane.current_path);
+}
+
+void GridFireApp::copy_between_panes(PaneState& source, PaneState& destination, bool move) {
+    if (!source.selected_entry) {
+        status_message_ = "Select an entry first";
+        return;
+    }
+    const auto& entry = *source.selected_entry;
+    std::filesystem::path target = std::filesystem::path(destination.current_path) / entry.name;
+    std::error_code ec;
+    if (std::filesystem::exists(target, ec)) {
+        status_message_ = "Target already exists: " + target.string();
+        return;
+    }
+
+    try {
+        if (entry.is_directory) {
+            if (move) {
+                std::filesystem::rename(entry.full_path, target);
+            } else {
+                std::filesystem::copy(entry.full_path, target, std::filesystem::copy_options::recursive);
+            }
+        } else {
+            if (move) {
+                std::filesystem::rename(entry.full_path, target);
+            } else {
+                std::filesystem::copy_file(entry.full_path, target);
+            }
+        }
+        status_message_ = (move ? "Moved " : "Copied ") + entry.name + " to " + destination.current_path;
+        log_event(__func__, status_message_);
+        source.refresh_requested = true;
+        destination.refresh_requested = true;
+    } catch (const std::filesystem::filesystem_error& error) {
+        status_message_ = std::string("Operation failed: ") + error.what();
+        log_event(__func__, status_message_);
+    }
+}
+
+void GridFireApp::sync_panes(const PaneState& source, PaneState& destination) {
+    change_directory(destination, source.current_path);
+}
+
+void GridFireApp::swap_panes() {
+    std::swap(left_pane_.tabs, right_pane_.tabs);
+    left_pane_.tabs.set_database(db_.get());
+    right_pane_.tabs.set_database(db_.get());
+    left_pane_.tabs.set_pane_id("left");
+    right_pane_.tabs.set_pane_id("right");
+    change_directory(left_pane_, left_pane_.tabs.active_tab().path);
+    change_directory(right_pane_, right_pane_.tabs.active_tab().path);
+    active_pane_ = active_pane_->id == PaneIdentifier::Left ? &left_pane_ : &right_pane_;
+    log_event(__func__, "Swapped panes");
+}
+
+PaneState& GridFireApp::pane(PaneIdentifier id) {
+    return id == PaneIdentifier::Left ? left_pane_ : right_pane_;
+}
+
+PaneState& GridFireApp::active_pane() {
+    return *active_pane_;
+}
+
+PaneState& GridFireApp::other_pane() {
+    return active_pane_->id == PaneIdentifier::Left ? right_pane_ : left_pane_;
 }
 
 void GridFireApp::run_command(const std::string& command) {

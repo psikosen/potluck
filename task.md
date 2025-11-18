@@ -9,3 +9,5 @@
 - [x] Document build and test workflow in README
 - [x] Implement interactive ImGui workspace with top bar, favorites picker, and detail panel
 - [x] Add functional grid/list views with selection, navigation, and command console wiring
+- [x] Implement persistent tab system with shortcut support per pane
+- [x] Build dual-pane workspace with copy/move/sync tooling and adjustable split
