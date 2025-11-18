@@ -25,10 +25,16 @@ set(GRIDFIRE_CORE_SOURCES
     src/ui/list_view.cpp
     src/ui/detail_panel.cpp
     src/ui/favorites_dropdown.cpp
+    src/ui/dual_pane_view.cpp
     src/ui/top_bar.cpp
     src/ui/command_panel.cpp
     src/ui/theme.cpp
+    src/ui/tab_system.cpp
 )
+
+if(GRIDFIRE_BUILD_APPLICATION)
+    list(APPEND GRIDFIRE_CORE_SOURCES src/ui/tab_system_render.cpp)
+endif()
 
 add_library(gridfire_core ${GRIDFIRE_CORE_SOURCES})
 target_include_directories(gridfire_core PUBLIC
@@ -86,3 +92,7 @@ add_test(NAME sqlite_manager_test COMMAND sqlite_manager_test)
 add_executable(filesystem_engine_test tests/test_filesystem.cpp)
 target_link_libraries(filesystem_engine_test PRIVATE gridfire_core)
 add_test(NAME filesystem_engine_test COMMAND filesystem_engine_test)
+
+add_executable(tab_system_test tests/test_tabs.cpp)
+target_link_libraries(tab_system_test PRIVATE gridfire_core)
+add_test(NAME tab_system_test COMMAND tab_system_test)
