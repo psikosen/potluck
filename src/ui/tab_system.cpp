@@ -135,7 +135,8 @@ void TabSystem::persist() {
     }
     std::string insert_sql =
         "INSERT INTO " + std::string(kTabTable) +
-        " (id, pane_id, name, path, color, pinned, sort_order, created_at, last_accessed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        " (id, pane_id, name, path, color, pinned, sort_order, view_mode, sort_mode, filter_pattern, scroll_position, created_at, last_accessed)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     for (size_t i = 0; i < tabs_.size(); ++i) {
         auto stmt = db_->prepare(insert_sql);
@@ -149,9 +150,13 @@ void TabSystem::persist() {
         db_->bind_text(stmt, 5, color_to_hex(tabs_[i].color));
         db_->bind_int(stmt, 6, tabs_[i].pinned ? 1 : 0);
         db_->bind_int(stmt, 7, static_cast<int>(i));
+        db_->bind_text(stmt, 8, tabs_[i].view_mode);
+        db_->bind_text(stmt, 9, tabs_[i].sort_mode);
+        db_->bind_text(stmt, 10, tabs_[i].filter_pattern);
+        db_->bind_int(stmt, 11, tabs_[i].scroll_position);
         auto timestamp = now_seconds();
-        db_->bind_int64(stmt, 8, timestamp);
-        db_->bind_int64(stmt, 9, timestamp);
+        db_->bind_int64(stmt, 12, timestamp);
+        db_->bind_int64(stmt, 13, timestamp);
         sqlite3_step(stmt);
         db_->finalize(stmt);
     }
@@ -166,8 +171,8 @@ void TabSystem::load() {
         return;
     }
 
-    std::string sql =
-        "SELECT id, name, path, color, pinned FROM " + std::string(kTabTable) + " WHERE pane_id = ? ORDER BY sort_order";
+    std::string sql = "SELECT id, name, path, color, pinned, view_mode, sort_mode, filter_pattern, scroll_position FROM " +
+                     std::string(kTabTable) + " WHERE pane_id = ? ORDER BY sort_order";
     auto stmt = db_->prepare(sql);
     if (!stmt) {
         return;
@@ -184,6 +189,21 @@ void TabSystem::load() {
             tab.color = hex_to_color(color);
         }
         tab.pinned = sqlite3_column_int(stmt, 4) == 1;
+        const char* view_mode = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+        if (view_mode) {
+            tab.view_mode = view_mode;
+        }
+        const char* sort_mode = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
+        if (sort_mode) {
+            tab.sort_mode = sort_mode;
+        }
+        const char* filter = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
+        if (filter) {
+            tab.filter_pattern = filter;
+        }
+        if (sqlite3_column_type(stmt, 8) != SQLITE_NULL) {
+            tab.scroll_position = sqlite3_column_int(stmt, 8);
+        }
         tabs_.push_back(tab);
     }
     db_->finalize(stmt);
