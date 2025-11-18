@@ -11,3 +11,4 @@
 - [x] Add functional grid/list views with selection, navigation, and command console wiring
 - [x] Implement persistent tab system with shortcut support per pane
 - [x] Build dual-pane workspace with copy/move/sync tooling and adjustable split
+- [x] Persist tab filters and scroll positions and add regression tests

@@ -14,6 +14,8 @@ public:
         std::string id;
         std::string name;
         std::string path;
+        std::string view_mode{"grid"};
+        std::string sort_mode{"name"};
         ImVec4 color{0.35f, 0.35f, 0.35f, 1.0f};
         bool pinned = false;
         bool modified = false;
