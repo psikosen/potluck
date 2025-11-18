@@ -30,6 +30,7 @@ set(GRIDFIRE_CORE_SOURCES
     src/ui/command_panel.cpp
     src/ui/theme.cpp
     src/ui/tab_system.cpp
+    external/stb/stb_image.cpp
 )
 
 if(GRIDFIRE_BUILD_APPLICATION)
@@ -41,6 +42,7 @@ target_include_directories(gridfire_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui
     ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui/misc/cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/stb
 )
 target_link_libraries(gridfire_core PUBLIC SQLite::SQLite3 Threads::Threads)
 
@@ -61,7 +63,6 @@ if(GRIDFIRE_BUILD_APPLICATION)
         external/imgui/imgui_widgets.cpp
         external/imgui/backends/imgui_impl_sdl2.cpp
         external/imgui/backends/imgui_impl_opengl3.cpp
-        external/stb/stb_image.cpp
     )
 
     target_include_directories(gridfire PRIVATE
@@ -96,3 +97,7 @@ add_test(NAME filesystem_engine_test COMMAND filesystem_engine_test)
 add_executable(tab_system_test tests/test_tabs.cpp)
 target_link_libraries(tab_system_test PRIVATE gridfire_core)
 add_test(NAME tab_system_test COMMAND tab_system_test)
+
+add_executable(analysis_test tests/test_analysis.cpp)
+target_link_libraries(analysis_test PRIVATE gridfire_core)
+add_test(NAME analysis_test COMMAND analysis_test)

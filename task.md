@@ -12,3 +12,5 @@
 - [x] Implement persistent tab system with shortcut support per pane
 - [x] Build dual-pane workspace with copy/move/sync tooling and adjustable split
 - [x] Persist tab filters and scroll positions and add regression tests
+- [x] Replace analysis relationship stubs with data-driven heuristics and logging
+- [x] Implement stb_image-backed ImageManager cache and regression coverage
