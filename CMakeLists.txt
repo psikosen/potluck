@@ -30,6 +30,7 @@ set(GRIDFIRE_CORE_SOURCES
     src/ui/command_panel.cpp
     src/ui/theme.cpp
     src/ui/tab_system.cpp
+    external/imgui/misc/cpp/imgui_stdlib.cpp
     external/stb/stb_image.cpp
 )
 
