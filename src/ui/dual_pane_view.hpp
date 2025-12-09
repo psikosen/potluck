@@ -2,6 +2,7 @@
 
 #include <optional>
 
+#include "ui/context_menu.hpp"
 #include "ui/pane_state.hpp"
 
 class DualPaneView {
@@ -13,6 +14,12 @@ public:
         std::optional<size_t> activated_index;
         bool tab_path_changed = false;
         std::string new_path;
+        // Context menu
+        ContextMenuResult context_action;
+        // Drag and drop
+        bool drop_received = false;
+        std::string dropped_path;
+        std::string drop_target_path;  // Directory where item was dropped
     };
 
     struct Interaction {
@@ -40,6 +47,10 @@ private:
     PaneRenderResult render_pane(PaneState& pane, bool is_active) const;
     void render_action_column(Interaction& interaction, PaneIdentifier active_pane);
     void update_divider();
+    
+    // Draggable splitter rendering
+    bool render_vertical_splitter(const char* id, float height, float& ratio, float total_width);
+    bool render_horizontal_splitter(const char* id, float width, float& ratio, float total_height);
 
     SplitOrientation orientation_ = SplitOrientation::Vertical;
     float divider_ratio_ = 0.5f;

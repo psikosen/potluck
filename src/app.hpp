@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "filesystem/filesystem_engine.hpp"
+#include "ui/context_menu.hpp"
 #include "ui/pane_state.hpp"
 #include "ui/view_mode.hpp"
 
@@ -50,6 +51,18 @@ private:
     PaneState& other_pane();
 
     void run_command(const std::string& command);
+    void handle_context_action(PaneState& pane, const ContextMenuResult& action);
+    void handle_drop(PaneState& pane, const std::string& source_path, const std::string& target_dir);
+
+    // Context menu action handlers
+    void open_in_editor(const std::string& path);
+    void open_in_terminal(const std::string& path);
+    void delete_entry(PaneState& pane, const std::string& path);
+    void rename_entry(PaneState& pane, const std::string& path);
+    void create_new_folder(PaneState& pane, const std::string& parent_path);
+    void create_new_file(PaneState& pane, const std::string& parent_path);
+    void copy_path_to_clipboard(const std::string& path);
+    void paste_from_clipboard(PaneState& pane, const std::string& target_dir);
 
     void log_event(const std::string& function, const std::string& message) const;
 
@@ -76,4 +89,13 @@ private:
     std::string status_message_;
     std::string last_command_message_;
     int last_command_exit_code_ = 0;
+
+    // Dialog state
+    bool show_rename_dialog_ = false;
+    bool show_delete_dialog_ = false;
+    bool show_new_folder_dialog_ = false;
+    bool show_new_file_dialog_ = false;
+    std::string dialog_target_path_;
+    char dialog_input_buffer_[256] = {0};
+    PaneState* dialog_pane_ = nullptr;
 };

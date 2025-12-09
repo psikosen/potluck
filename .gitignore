@@ -1,8 +1,80 @@
+# Build directories
 /build/
 /CMakeFiles/
+/out/
+
+# CMake generated files
 CMakeCache.txt
 cmake_install.cmake
+CMakeFiles/
 *.cmake
+!CMakeLists.txt
 Makefile
 compile_commands.json
+CTestTestfile.cmake
+*.cmake.in
+
+# Compiled binaries
+*.exe
+*.out
+*.app
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+
+# Object files
+*.o
+*.obj
+*.lo
+*.slo
+
+# Database files
 *.db
+*.sqlite
+*.sqlite3
+
+# ImGui config files
+imgui.ini
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+Testing/
+*.test
+test_results/
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+*.cache
+
+# OS-specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor backups
+*~
+*.swp
+*.swo
+.#*
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb

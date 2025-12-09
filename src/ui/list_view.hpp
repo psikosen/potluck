@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "filesystem/filesystem_engine.hpp"
+#include "ui/context_menu.hpp"
 #include "ui/theme.hpp"
 
 class ListView {
@@ -12,11 +13,22 @@ public:
     struct Interaction {
         std::optional<size_t> selected_index;
         std::optional<size_t> activated_index;
+        // Context menu
+        bool context_menu_opened = false;
+        std::optional<size_t> context_menu_index;
+        ContextMenuResult context_action;
+        // Drag and drop
+        bool drag_started = false;
+        std::optional<size_t> drag_index;
+        bool drop_received = false;
+        std::string dropped_path;
     };
 
     ListView() = default;
     void set_entries(const std::vector<FileEntry>& entries);
     void set_theme(const ThemeManager::Theme& theme) { theme_ = theme; }
+    void set_current_path(const std::string& path) { current_path_ = path; }
+    void set_context_menu(ContextMenu* menu) { context_menu_ = menu; }
 
     Interaction render(std::optional<size_t> selected_index) const;
 
@@ -26,4 +38,8 @@ private:
 
     std::vector<FileEntry> entries_;
     ThemeManager::Theme theme_;
+    std::string current_path_;
+    ContextMenu* context_menu_ = nullptr;
+    mutable std::string context_popup_id_;
+    mutable std::string bg_context_popup_id_;
 };

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "filesystem/filesystem_engine.hpp"
+#include "ui/context_menu.hpp"
 #include "ui/grid_view.hpp"
 #include "ui/list_view.hpp"
 #include "ui/tab_system.hpp"
@@ -32,5 +33,6 @@ struct PaneState {
     std::chrono::steady_clock::time_point last_refresh{};
     std::unique_ptr<GridView> grid_view;
     std::unique_ptr<ListView> list_view;
+    ContextMenu context_menu;
     TabSystem tabs;
 };

@@ -9,7 +9,7 @@ void DetailPanel::set_selection(const std::optional<FileEntry>& entry) {
 }
 
 void DetailPanel::render() const {
-    ImGui::Begin("Details");
+    ImGui::Begin("Details", nullptr, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     if (!selection_) {
         ImGui::TextUnformatted("Select a file to see metadata");
         ImGui::End();

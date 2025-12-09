@@ -13,9 +13,13 @@ void CommandPanel::set_last_command(const std::string& command) {
     last_command_ = command;
 }
 
+void CommandPanel::set_last_output(const std::string& output) {
+    last_output_ = output;
+}
+
 CommandPanel::Interaction CommandPanel::render(int last_exit_code, const std::string& last_message) {
     Interaction interaction;
-    ImGui::Begin("Command Panel");
+    ImGui::Begin("Command Panel", nullptr, ImGuiWindowFlags_AlwaysVerticalScrollbar);
 
     ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue;
     if (ImGui::InputText("Command", &input_buffer_, flags)) {
@@ -47,6 +51,19 @@ CommandPanel::Interaction CommandPanel::render(int last_exit_code, const std::st
         ImGui::Text("Exit Code: %d", last_exit_code);
         if (!last_message.empty()) {
             ImGui::TextWrapped("%s", last_message.c_str());
+        }
+
+        if (!last_output_.empty()) {
+            ImGui::SeparatorText("Output");
+            ImGui::BeginChild("command-output", ImVec2(0, 150.0f), true, ImGuiWindowFlags_HorizontalScrollbar);
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextUnformatted(last_output_.c_str());
+            ImGui::PopTextWrapPos();
+
+            if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 5.0f) {
+                ImGui::SetScrollHereY(1.0f);
+            }
+            ImGui::EndChild();
         }
     }
 
